@@ -1,11 +1,17 @@
 [project]
-name = "py-load-eurostat"
+name = "py-load-euctr"
 version = "0.1.0"
 description = "Default template for PDM package"
 authors = [
     {name = "google-labs-jules[bot]", email = "161369871+google-labs-jules[bot]@users.noreply.github.com"},
 ]
-dependencies = ["httpx>=0.28.1", "sdmx>=0.2.10", "pandas>=2.3.2", "pydantic>=2.11.7", "pydantic-settings>=2.10.1", "lxml>=6.0.1"]
+dependencies = [
+    "httpx>=0.28.1",
+    "pydantic>=2.11.7",
+    "pydantic-settings>=2.10.1",
+    "beautifulsoup4>=4.12.3",
+    "psycopg[binary]>=3.1.18",
+]
 requires-python = "==3.11.*"
 readme = "README.md"
 license = {text = "MIT"}
@@ -24,4 +30,6 @@ dev = [
     "ruff>=0.12.12",
     "pytest>=8.4.2",
     "mypy>=1.17.1",
+    "testcontainers[postgres]>=4.4.0",
+    "pytest-httpx>=0.29.0",
 ]
