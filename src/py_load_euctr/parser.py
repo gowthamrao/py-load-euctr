@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Contains functions for parsing data from various sources.
+
+Such as cleaning up raw JSON from APIs or scraping HTML.
 """
-This module will contain functions for parsing data from various sources,
-such as cleaning up raw JSON from APIs or scraping HTML.
-"""
-pass
