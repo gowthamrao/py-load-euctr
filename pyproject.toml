@@ -3,7 +3,7 @@ name = "py-load-euctr"
 version = "0.1.0"
 description = "Default template for PDM package"
 authors = [
-    {name = "google-labs-jules", email = "161369871+google-labs-jules@users.noreply.github.com"},
+    {name = "Gowtham Rao", email = "rao@ohdsi.org"},
 ]
 dependencies = [
     "httpx>=0.28.1",
@@ -14,7 +14,7 @@ dependencies = [
 ]
 requires-python = ">=3.11"
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "Apache-2.0"}
 
 
 [tool.pdm]
