@@ -21,13 +21,19 @@ class CtisExtractor:
             timeout=30.0,
         )
 
-    async def _get_trial_list_page(self, page: int, page_size: int = 20) -> Dict[str, Any]:
+    async def _get_trial_list_page(
+        self, page: int, page_size: int = 20, from_decision_date: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Fetches a single page of trial search results."""
-        # This payload can be extended with search criteria later if needed.
         payload = {
             "pagination": {"page": page, "size": page_size},
             "sort": {"property": "decisionDate", "direction": "DESC"},
         }
+        # Add the decision date filter if provided.
+        # This is based on an educated guess of the API's capabilities.
+        if from_decision_date:
+            payload["advancedSearch"] = {"decisionDate": {"from": from_decision_date}}
+
         try:
             response = await self.client.post(self.SEARCH_URL, json=payload)
             response.raise_for_status()
@@ -47,17 +53,29 @@ class CtisExtractor:
             print(f"Error fetching details for trial {ct_number}: {e!r}")
             return {}
 
-    async def extract_trials(self) -> AsyncGenerator[Dict[str, Any], None]:
+    async def extract_trials(
+        self, from_decision_date: Optional[str] = None
+    ) -> AsyncGenerator[Dict[str, Any], None]:
         """
-        Extracts all clinical trials from the CTIS portal.
+        Extracts clinical trials from the CTIS portal.
 
-        This method handles pagination to retrieve all trial numbers and then
-        fetches the full details for each trial. It yields the full JSON data
-        for one trial at a time.
+        If `from_decision_date` is provided (in YYYY-MM-DD format), it fetches
+        trials with a decision date after that date (inclusive). Otherwise, it
+        fetches all trials.
+
+        This method handles pagination and fetches full details for each trial.
+        It yields the full JSON data for one trial at a time.
         """
         page = 1
+        if from_decision_date:
+            print(f"Starting delta extraction from decision date: {from_decision_date}")
+        else:
+            print("Starting full extraction of all trials.")
+
         while True:
-            search_results = await self._get_trial_list_page(page)
+            search_results = await self._get_trial_list_page(
+                page, from_decision_date=from_decision_date
+            )
             if not search_results or not search_results.get("data"):
                 print("No more trial data found or an error occurred.")
                 break

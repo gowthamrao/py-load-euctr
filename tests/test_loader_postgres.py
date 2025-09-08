@@ -1,3 +1,4 @@
+import csv
 import pytest
 from testcontainers.postgres import PostgresContainer
 import psycopg
@@ -19,13 +20,22 @@ def postgres_container():
         yield container
 
 
+import urllib.parse
+
+
 @pytest.fixture
 def postgres_loader(postgres_container: PostgresContainer) -> PostgresLoader:
     """
     A pytest fixture that provides an instance of PostgresLoader
     configured to connect to the running test container.
     """
-    conn_string = postgres_container.get_connection_url()
+    conn_url = postgres_container.get_connection_url()
+    parsed = urllib.parse.urlparse(conn_url)
+    conn_string = (
+        f"host='{parsed.hostname}' port='{parsed.port}' "
+        f"user='{parsed.username}' password='{parsed.password}' "
+        f"dbname='{parsed.path.lstrip('/')}'"
+    )
     return PostgresLoader(conn_string)
 
 
@@ -46,7 +56,13 @@ def test_postgres_loader_connection_and_execution(postgres_loader: PostgresLoade
 
     # To verify the commit, connect to the database again in a new session
     # and check if the data is present.
-    conn_string = postgres_container.get_connection_url()
+    conn_url = postgres_container.get_connection_url()
+    parsed = urllib.parse.urlparse(conn_url)
+    conn_string = (
+        f"host='{parsed.hostname}' port='{parsed.port}' "
+        f"user='{parsed.username}' password='{parsed.password}' "
+        f"dbname='{parsed.path.lstrip('/')}'"
+    )
     with psycopg.connect(conn_string) as conn:
         with conn.cursor() as cur:
             cur.execute(f"SELECT id, name FROM {test_table_name} WHERE id = 1;")
@@ -77,7 +93,13 @@ def test_postgres_loader_rollback_on_exception(postgres_loader: PostgresLoader, 
         pass
 
     # Connect again to verify that the table creation was rolled back.
-    conn_string = postgres_container.get_connection_url()
+    conn_url = postgres_container.get_connection_url()
+    parsed = urllib.parse.urlparse(conn_url)
+    conn_string = (
+        f"host='{parsed.hostname}' port='{parsed.port}' "
+        f"user='{parsed.username}' password='{parsed.password}' "
+        f"dbname='{parsed.path.lstrip('/')}'"
+    )
     with psycopg.connect(conn_string) as conn:
         with conn.cursor() as cur:
             # A reliable way to check for table existence in PostgreSQL.
@@ -98,8 +120,13 @@ def test_postgres_loader_bulk_load(postgres_loader: PostgresLoader, postgres_con
     create_table_sql = f"CREATE TABLE {test_table_name} (id INT, name VARCHAR(100));"
 
     # Prepare sample CSV data in an in-memory bytes buffer.
-    csv_data = b"1,first_row\\n2,second_row\\n3,third_row with comma\\,"
-    data_stream = io.BytesIO(csv_data)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([1, "first_row"])
+    writer.writerow([2, "second_row"])
+    writer.writerow([3, "third_row with comma,"])
+    output.seek(0)
+    data_stream = io.BytesIO(output.getvalue().encode("utf-8"))
 
     with postgres_loader as loader:
         loader.execute_sql(create_table_sql)
@@ -111,7 +138,13 @@ def test_postgres_loader_bulk_load(postgres_loader: PostgresLoader, postgres_con
         )
 
     # Verify the data was loaded correctly.
-    conn_string = postgres_container.get_connection_url()
+    conn_url = postgres_container.get_connection_url()
+    parsed = urllib.parse.urlparse(conn_url)
+    conn_string = (
+        f"host='{parsed.hostname}' port='{parsed.port}' "
+        f"user='{parsed.username}' password='{parsed.password}' "
+        f"dbname='{parsed.path.lstrip('/')}'"
+    )
     with psycopg.connect(conn_string) as conn:
         with conn.cursor() as cur:
             cur.execute(f"SELECT COUNT(*) FROM {test_table_name};")

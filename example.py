@@ -3,7 +3,9 @@ import io
 import csv
 import json
 import uuid
+import argparse
 from datetime import datetime, timezone
+from typing import Optional
 
 from src.py_load_euctr.config import settings
 from src.py_load_euctr.extractor import CtisExtractor
@@ -11,23 +13,51 @@ from src.py_load_euctr.loader.postgres import PostgresLoader
 from src.py_load_euctr.models import CtisTrialBronze
 
 
-async def main():
+def get_last_decision_date(loader: PostgresLoader, schema: str, table: str) -> Optional[str]:
+    """
+    Retrieves the most recent decision date from the database.
+    Returns the date in 'YYYY-MM-DD' format or None if no data exists.
+    """
+    print("Querying for the last decision date...")
+    query = f"""
+        SELECT (data->>'decisionDate')::date AS last_date
+        FROM {schema}.{table}
+        WHERE data->>'decisionDate' IS NOT NULL
+        ORDER BY last_date DESC
+        LIMIT 1;
+    """
+    try:
+        result = loader.execute_sql(query, fetch="one")
+        if result and result[0]:
+            last_date = result[0].strftime('%Y-%m-%d')
+            print(f"Found last decision date: {last_date}")
+            return last_date
+        else:
+            print("No existing decision date found in the database.")
+            return None
+    except Exception as e:
+        # This can happen if the table doesn't exist yet on the first run.
+        print(f"Could not retrieve last decision date (table might not exist yet): {e}")
+        return None
+
+
+async def main(load_type: str):
     """
     Orchestrates the ELT process for fetching CTIS data and loading it
     into the Bronze layer of a PostgreSQL database.
     """
-    print("Starting CTIS ELT process...")
+    print(f"Starting CTIS ELT process (mode: {load_type})...")
     load_id = str(uuid.uuid4())
     print(f"Generated Load ID: {load_id}")
+
+    schema_name = "raw"
+    table_name = "ctis_trials"
 
     # The loader is a context manager for the database connection
     # and transaction.
     with PostgresLoader(settings.db_connection_string) as loader:
         # 1. Ensure schema and table exist
-        print("Ensuring 'raw' schema and 'ctis_trials' table exist...")
-        schema_name = "raw"
-        table_name = "ctis_trials"
-
+        print(f"Ensuring '{schema_name}' schema and '{table_name}' table exist...")
         create_schema_sql = f"CREATE SCHEMA IF NOT EXISTS {schema_name};"
         # Note: Using JSONB is highly recommended for storing raw JSON data.
         create_table_sql = f"""
@@ -42,17 +72,24 @@ async def main():
         loader.execute_sql(create_table_sql)
         print("Database schema and table are ready.")
 
+        # Determine the starting decision date for delta loads
+        from_decision_date = None
+        if load_type == "delta":
+            from_decision_date = get_last_decision_date(loader, schema_name, table_name)
+            if from_decision_date is None:
+                print("No last decision date found. Consider running a 'full' load first.")
+                # Depending on requirements, you might want to stop here or default to a full load.
+                # For this example, we'll stop.
+                return
+
         # 2. Extract data and load it into the buffer
         extractor = CtisExtractor(settings)
 
-        # Using io.StringIO for CSV writer, which will be encoded to bytes for the loader.
         string_buffer = io.StringIO()
-        # Use a tab as a delimiter to avoid issues with commas in JSON strings.
         writer = csv.writer(string_buffer, delimiter='\\t', quoting=csv.QUOTE_NONE, escapechar='\\\\')
 
-        print("Starting extraction from CTIS API...")
         trials_processed = 0
-        async for trial_data in extractor.extract_trials():
+        async for trial_data in extractor.extract_trials(from_decision_date=from_decision_date):
             source_url = extractor.RETRIEVE_URL_TEMPLATE.format(ct_number=trial_data.get("ctNumber", ""))
 
             bronze_record = CtisTrialBronze(
@@ -101,5 +138,12 @@ async def main():
 
 
 if __name__ == "__main__":
-    # To run the async main function
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(description="Run the CTIS ELT process.")
+    parser.add_argument(
+        "load_type",
+        choices=["full", "delta"],
+        help="Specify the type of load to perform: 'full' for a complete data refresh, 'delta' for an incremental update.",
+    )
+    args = parser.parse_args()
+
+    asyncio.run(main(load_type=args.load_type))
