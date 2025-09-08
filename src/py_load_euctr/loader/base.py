@@ -11,14 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Defines the abstract base class for database loaders."""
 
 import abc
-from typing import IO, Any, Iterable, Optional
+import types
+from collections.abc import Iterable
+from typing import IO, Any
 
 
 class BaseLoader(abc.ABC):
-    """
-    Abstract Base Class for all database loaders.
+    """Abstract Base Class for all database loaders.
 
     This class defines the interface that all database-specific loaders must
     implement. It follows the Adapter Pattern to ensure database agnosticism
@@ -27,16 +29,23 @@ class BaseLoader(abc.ABC):
 
     @abc.abstractmethod
     def __enter__(self) -> "BaseLoader":
-        """
-        Establishes the database connection and begins a transaction.
-        Returns the loader instance.
+        """Establish the database connection and begin a transaction.
+
+        Returns:
+            The loader instance.
+
         """
         raise NotImplementedError
 
     @abc.abstractmethod
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        """
-        Commits the transaction if no exceptions occurred, otherwise rolls back.
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None,
+    ) -> None:
+        """Commit the transaction on success or roll back on error.
+
         Closes the database connection.
         """
         raise NotImplementedError
@@ -46,11 +55,10 @@ class BaseLoader(abc.ABC):
         self,
         target_table: str,
         data_stream: IO[bytes],
-        columns: Optional[list[str]] = None,
-        delimiter: str = ',',
+        columns: list[str] | None = None,
+        delimiter: str = ",",
     ) -> None:
-        """
-        Executes a native bulk load operation.
+        """Execute a native bulk load operation.
 
         This method should stream data from an in-memory buffer (e.g., io.BytesIO)
         directly to the database's native bulk loading utility (e.g., COPY).
@@ -63,13 +71,13 @@ class BaseLoader(abc.ABC):
                      does not map to all columns in the table or is in a
                      different order.
             delimiter: The delimiter used in the data stream.
+
         """
         raise NotImplementedError
 
     @abc.abstractmethod
-    def execute_sql(self, sql: str, params: Optional[Iterable[Any]] = None) -> None:
-        """
-        Executes an arbitrary SQL command.
+    def execute_sql(self, sql: str, params: Iterable[Any] | None = None) -> None:
+        """Execute an arbitrary SQL command.
 
         Used for tasks like creating schemas, tables, or running transformation
         logic (e.g., MERGE statements).
@@ -78,5 +86,6 @@ class BaseLoader(abc.ABC):
             sql: The SQL statement to execute.
             params: An optional iterable of parameters to be used with the SQL
                     statement to prevent SQL injection.
+
         """
         raise NotImplementedError
