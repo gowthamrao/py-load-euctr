@@ -1,0 +1,78 @@
+[tool.poetry]
+name = "py-load-euctr"
+version = "0.1.0"
+description = "ELT solution for synchronizing data from the European Union Clinical Trials Register (EU CTR)."
+authors = ["Gowtham Rao <rao@ohdsi.org>"]
+readme = "README.md"
+packages = [{include = "py_load_euctr"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pydantic = "^2.5"
+httpx = {extras = ["http2"], version = "^0.26.0"}
+typer = {extras = ["rich"], version = "^0.9.0"}
+python-dotenv = "^1.0.0"
+pyyaml = "^6.0.1"
+jinja2 = "^3.1.2"
+
+# Optional Database Driver Dependencies
+psycopg = { version = "^3.1", extras = ["binary"], optional = true }
+asyncpg = { version = "^0.29.0", optional = true }
+google-cloud-bigquery = { version = "^3.14", optional = true }
+databricks-sql-connector = { version = "^3.0", optional = true }
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4"
+pytest-cov = "^4.1"
+black = "^23.12"
+ruff = "^0.1.7"
+mypy = "^1.7"
+pre-commit = "^3.6"
+pytest-asyncio = "^0.23"
+testcontainers = {extras = ["postgresql"], version = "^4.0"}
+pytest-httpx = "^0.29.0"
+pytest-mock = "^3.15.0"
+
+
+[tool.poetry.extras]
+postgresql = ["psycopg", "asyncpg"]
+redshift = ["psycopg"]
+bigquery = ["google-cloud-bigquery"]
+databricks = ["databricks-sql-connector"]
+
+[tool.poetry.scripts]
+py-load-euctr = "py_load_euctr.cli:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "T20", "SIM", "PTH", "TID"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+strict = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --cov=py_load_euctr --cov-report=term-missing --cov-fail-under=90"
+testpaths = [
+    "tests/unit",
+    "tests/integration",
+]
+pythonpath = "."
+markers = [
+    "unit: marks tests as unit tests",
+    "integration: marks tests as integration tests",
+]
