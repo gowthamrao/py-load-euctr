@@ -1,0 +1,3 @@
+Adding packages to dev dev-dependencies: ruff
+  0:00:06 🔒 Lock successful.
+Changes are written to pyproject.toml.
