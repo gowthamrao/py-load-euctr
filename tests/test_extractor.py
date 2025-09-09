@@ -159,3 +159,45 @@ async def test_ctis_extractor_delta_load(mock_settings: Settings, httpx_mock: HT
     # Assertions
     assert len(results) == 1
     assert results[0] == MOCK_TRIAL_DETAILS_4
+
+
+@pytest.mark.asyncio
+async def test_ctis_extractor_no_trials_found(
+    mock_settings: Settings, httpx_mock: HTTPXMock
+):
+    """
+    Tests that the extractor handles the case where the search returns no trials.
+    """
+    httpx_mock.add_response(
+        method="POST",
+        url=CtisExtractor.SEARCH_URL,
+        json={"pagination": {"page": 1, "size": 20, "totalPages": 0, "nextPage": False}, "data": []},
+    )
+
+    extractor = CtisExtractor(settings=mock_settings)
+    results = [trial async for trial in extractor.extract_trials()]
+
+    assert len(results) == 0
+
+
+@pytest.mark.asyncio
+async def test_ctis_extractor_trial_with_no_ct_number(
+    mock_settings: Settings, httpx_mock: HTTPXMock
+):
+    """
+    Tests that the extractor can handle trials that are missing a ctNumber
+    and stops processing further pages.
+    """
+    httpx_mock.add_response(
+        method="POST",
+        url=CtisExtractor.SEARCH_URL,
+        json={
+            "pagination": {"page": 1, "size": 20, "totalPages": 2, "nextPage": True},
+            "data": [{"ctTitle": "Trial with no number"}]  # Missing ctNumber
+        },
+    )
+
+    extractor = CtisExtractor(settings=mock_settings)
+    results = [trial async for trial in extractor.extract_trials()]
+
+    assert len(results) == 0
