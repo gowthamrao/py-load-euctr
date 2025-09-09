@@ -168,3 +168,68 @@ def test_postgres_loader_bulk_load(postgres_loader: PostgresLoader, postgres_con
             cur.execute(f"SELECT name FROM {test_table_name} WHERE id = 3;")
             name = cur.fetchone()[0]
             assert name == "third_row with comma,"
+
+
+def test_postgres_loader_exit_without_enter(postgres_loader: PostgresLoader):
+    """
+    Tests that calling __exit__ without __enter__ does nothing and
+    does not raise an error.
+    """
+    # This should not raise any exception
+    postgres_loader.__exit__(None, None, None)
+
+
+def test_postgres_loader_raises_runtime_error_if_not_in_context(
+    postgres_loader: PostgresLoader,
+):
+    """
+    Tests that calling execute_sql or bulk_load_stream outside of a context
+    manager block raises a RuntimeError.
+    """
+    with pytest.raises(RuntimeError, match="Cursor is not available"):
+        postgres_loader.execute_sql("SELECT 1;")
+
+    with pytest.raises(RuntimeError, match="Cursor is not available"):
+        postgres_loader.bulk_load_stream(
+            "any_table", io.BytesIO(b"any_data")
+        )
+
+
+def test_postgres_loader_bulk_load_no_columns(
+    postgres_loader: PostgresLoader, postgres_container: PostgresContainer
+):
+    """
+    Tests the bulk_load_stream method without specifying columns,
+    covering the `else` branch in the method.
+    """
+    test_table_name = "test_bulk_load_no_cols"
+    create_table_sql = f"CREATE TABLE {test_table_name} (id INT, name VARCHAR(100));"
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([10, "no_columns_specified"])
+    output.seek(0)
+    data_stream = io.BytesIO(output.getvalue().encode("utf-8"))
+
+    with postgres_loader as loader:
+        loader.execute_sql(create_table_sql)
+        # Call bulk_load_stream without the 'columns' argument
+        loader.bulk_load_stream(
+            target_table=test_table_name,
+            data_stream=data_stream,
+            delimiter=","
+        )
+
+    # Verify the data was loaded correctly.
+    conn_url = postgres_container.get_connection_url()
+    parsed = urllib.parse.urlparse(conn_url)
+    conn_string = (
+        f"host='{parsed.hostname}' port='{parsed.port}' "
+        f"user='{parsed.username}' password='{parsed.password}' "
+        f"dbname='{parsed.path.lstrip('/')}'"
+    )
+    with psycopg.connect(conn_string) as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT name FROM {test_table_name} WHERE id = 10;")
+            name = cur.fetchone()[0]
+            assert name == "no_columns_specified"
