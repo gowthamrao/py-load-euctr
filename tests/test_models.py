@@ -52,6 +52,22 @@ def test_ctis_trial_bronze_missing_fields():
         )
 
 
+def test_ctis_trial_bronze_null_data():
+    """
+    Tests that creating a CtisTrialBronze model with null
+    data does not raise a validation error.
+    """
+    now = datetime.now(timezone.utc)
+    # This should not raise a validation error
+    bronze_record = CtisTrialBronze(
+        load_id="test_load_id",
+        extracted_at_utc=now,
+        source_url="https://example.com/trial/123",
+        data=None,
+    )
+    assert bronze_record.data is None
+
+
 def test_ctis_trial_bronze_incorrect_types():
     """
     Tests that creating a CtisTrialBronze model with incorrect
