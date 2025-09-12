@@ -240,19 +240,35 @@ async def test_ctis_extractor_retrieve_error(
 
 
 @pytest.mark.asyncio
+@pytest.mark.httpx_mock(assert_all_responses_were_requested=False)
 async def test_ctis_extractor_trial_with_no_ct_number(
     mock_settings: Settings, httpx_mock: HTTPXMock
 ):
     """
-    Tests that the extractor can handle trials that are missing a ctNumber
-    and stops processing further pages.
+    Tests that the extractor stops processing if a page of search results
+    contains no trials with a ctNumber.
     """
+    # Mock the first page to return a trial with no ctNumber
     httpx_mock.add_response(
         method="POST",
         url=CtisExtractor.SEARCH_URL,
         json={
-            "pagination": {"page": 1, "size": 20, "totalPages": 2, "nextPage": True},
-            "data": [{"ctTitle": "Trial with no number"}]  # Missing ctNumber
+            "pagination": {"page": 1, "size": 1, "totalPages": 2, "nextPage": True},
+            "data": [{"ctTitle": "Trial with no number"}],  # Missing ctNumber
+        },
+        match_json={
+            "pagination": {"page": 1, "size": 20},
+            "sort": {"property": "decisionDate", "direction": "DESC"},
+        },
+    )
+    # Mock the second page, which should not be called
+    httpx_mock.add_response(
+        method="POST",
+        url=CtisExtractor.SEARCH_URL,
+        json=MOCK_SEARCH_RESPONSE_PAGE_2,
+        match_json={
+            "pagination": {"page": 2, "size": 20},
+            "sort": {"property": "decisionDate", "direction": "DESC"},
         },
     )
 
@@ -260,3 +276,29 @@ async def test_ctis_extractor_trial_with_no_ct_number(
     results = [trial async for trial in extractor.extract_trials()]
 
     assert len(results) == 0
+    # Verify that only the first page was requested
+    requests = httpx_mock.get_requests(method="POST", url=CtisExtractor.SEARCH_URL)
+    assert len(requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_ctis_extractor_empty_data_with_next_page(
+    mock_settings: Settings, httpx_mock: HTTPXMock
+):
+    """
+    Tests that the extractor stops if the search results have an empty data list,
+    even if nextPage is true.
+    """
+    httpx_mock.add_response(
+        method="POST",
+        url=CtisExtractor.SEARCH_URL,
+        json={"pagination": {"page": 1, "size": 20, "totalPages": 2, "nextPage": True}, "data": []},
+    )
+
+    extractor = CtisExtractor(settings=mock_settings)
+    results = [trial async for trial in extractor.extract_trials()]
+
+    assert len(results) == 0
+    # Verify that only one page was requested
+    requests = httpx_mock.get_requests(method="POST", url=CtisExtractor.SEARCH_URL)
+    assert len(requests) == 1
