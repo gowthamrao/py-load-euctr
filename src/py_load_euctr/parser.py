@@ -16,3 +16,35 @@
 
 Such as cleaning up raw JSON from APIs or scraping HTML.
 """
+
+import csv
+import io
+from typing import Any
+
+
+def parse_trial_to_csv(trial_data: dict[str, Any]) -> str | None:
+    """
+    Parses a single trial's JSON data into a CSV-formatted string.
+
+    Args:
+        trial_data: A dictionary containing the trial data from the API.
+
+    Returns:
+        A string containing a single CSV row, or None if the input is invalid.
+    """
+    if not isinstance(trial_data, dict):
+        return None
+
+    ct_number = trial_data.get("ctNumber")
+    details = trial_data.get("details")
+
+    if not ct_number or not details:
+        return None
+
+    # Use StringIO to build the CSV row in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([ct_number, details])
+
+    # Return the content of the StringIO object
+    return output.getvalue()
