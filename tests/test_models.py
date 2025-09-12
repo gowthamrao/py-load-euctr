@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
+from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
@@ -23,7 +23,7 @@ def test_ctis_trial_bronze_creation():
     """
     Tests the successful creation of a CtisTrialBronze model.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     trial_data = {
         "load_id": "test_load_id",
         "extracted_at_utc": now,
