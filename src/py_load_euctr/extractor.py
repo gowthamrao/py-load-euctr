@@ -64,13 +64,9 @@ class CtisExtractor:
     async def _get_full_trial_details(self, ct_number: str) -> dict[str, Any]:
         """Fetch the full details for a single clinical trial."""
         url = self.RETRIEVE_URL_TEMPLATE.format(ct_number=ct_number)
-        try:
-            response = await self.client.get(url)
-            response.raise_for_status()
-            return response.json()
-        except (httpx.RequestError, httpx.HTTPStatusError) as e:
-            logging.error("Failed to fetch trial details for %s: %s", ct_number, e)
-            return {}
+        response = await self.client.get(url)
+        response.raise_for_status()
+        return response.json()
 
     async def extract_trials(
         self, from_decision_date: str | None = None,
@@ -107,9 +103,12 @@ class CtisExtractor:
                 self._get_full_trial_details(ct_number) for ct_number in ct_numbers
             ]
             for future in asyncio.as_completed(tasks):
-                trial_details = await future
-                if trial_details:
-                    yield trial_details
+                try:
+                    trial_details = await future
+                    if trial_details:
+                        yield trial_details
+                except (httpx.RequestError, httpx.HTTPStatusError) as e:
+                    logging.warning("Skipping trial due to error: %s", e)
 
             if not search_results.get("pagination", {}).get("nextPage"):
                 break

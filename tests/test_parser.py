@@ -58,3 +58,15 @@ def test_parse_trial_to_csv_invalid_input(invalid_input):
     Tests that the parser returns None for various kinds of invalid or incomplete input.
     """
     assert parse_trial_to_csv(invalid_input) is None
+
+
+def test_parse_trial_with_special_characters():
+    """
+    Tests parsing of details with quotes, newlines, and other special characters.
+    """
+    trial_data = {
+        "ctNumber": "2022-500005-05-00",
+        "details": 'A trial with "quotes" and a \nnewline.',
+    }
+    expected_csv = '2022-500005-05-00,"A trial with ""quotes"" and a \nnewline."\r\n'
+    assert parse_trial_to_csv(trial_data) == expected_csv
