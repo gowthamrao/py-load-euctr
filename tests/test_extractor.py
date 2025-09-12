@@ -181,6 +181,65 @@ async def test_ctis_extractor_no_trials_found(
 
 
 @pytest.mark.asyncio
+async def test_ctis_extractor_timeout_error(
+    mock_settings: Settings, httpx_mock: HTTPXMock
+):
+    """
+    Tests that the extractor can handle a timeout error and stop processing.
+    """
+    httpx_mock.add_exception(
+        httpx.TimeoutException("Timeout"),
+        method="POST",
+        url=CtisExtractor.SEARCH_URL
+    )
+
+    extractor = CtisExtractor(settings=mock_settings)
+    results = [trial async for trial in extractor.extract_trials()]
+
+    assert len(results) == 0
+
+
+@pytest.mark.asyncio
+async def test_ctis_extractor_retrieve_error(
+    mock_settings: Settings, httpx_mock: HTTPXMock
+):
+    """
+    Tests that the extractor can handle an error when retrieving a single trial
+    and continue processing other trials.
+    """
+    httpx_mock.add_response(
+        method="POST",
+        url=CtisExtractor.SEARCH_URL,
+        json={
+            "pagination": {"page": 1, "size": 2, "totalPages": 1, "nextPage": False},
+            "data": [
+                {"ctNumber": "2022-000001-01", "ctTitle": "Trial 1"},
+                {"ctNumber": "2022-000002-02", "ctTitle": "Trial 2"},
+            ],
+        },
+    )
+
+    # Mock the first retrieve call to fail
+    httpx_mock.add_response(
+        method="GET",
+        url=CtisExtractor.RETRIEVE_URL_TEMPLATE.format(ct_number="2022-000001-01"),
+        status_code=500,
+    )
+    # Mock the second retrieve call to succeed
+    httpx_mock.add_response(
+        method="GET",
+        url=CtisExtractor.RETRIEVE_URL_TEMPLATE.format(ct_number="2022-000002-02"),
+        json=MOCK_TRIAL_DETAILS_2,
+    )
+
+    extractor = CtisExtractor(settings=mock_settings)
+    results = [trial async for trial in extractor.extract_trials()]
+
+    assert len(results) == 1
+    assert results[0] == MOCK_TRIAL_DETAILS_2
+
+
+@pytest.mark.asyncio
 async def test_ctis_extractor_trial_with_no_ct_number(
     mock_settings: Settings, httpx_mock: HTTPXMock
 ):

@@ -35,4 +35,4 @@ class CtisTrialBronze(BaseModel):
     source_url: str
 
     # The raw data from the source as per FRD R.4.2.2
-    data: dict[str, Any]
+    data: dict[str, Any] | None = None
