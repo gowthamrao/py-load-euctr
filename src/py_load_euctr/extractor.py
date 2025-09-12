@@ -14,6 +14,7 @@
 """Provides a class to extract clinical trial data from the CTIS API."""
 
 import asyncio
+import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -56,18 +57,16 @@ class CtisExtractor:
             response = await self.client.post(self.SEARCH_URL, json=payload)
             response.raise_for_status()
             return response.json()
-        except (httpx.RequestError, httpx.HTTPStatusError):
+        except (httpx.RequestError, httpx.HTTPStatusError) as e:
+            logging.error("Failed to fetch trial list page: %s", e)
             return {}
 
     async def _get_full_trial_details(self, ct_number: str) -> dict[str, Any]:
         """Fetch the full details for a single clinical trial."""
         url = self.RETRIEVE_URL_TEMPLATE.format(ct_number=ct_number)
-        try:
-            response = await self.client.get(url)
-            response.raise_for_status()
-            return response.json()
-        except (httpx.RequestError, httpx.HTTPStatusError):
-            return {}
+        response = await self.client.get(url)
+        response.raise_for_status()
+        return response.json()
 
     async def extract_trials(
         self, from_decision_date: str | None = None,
@@ -82,11 +81,6 @@ class CtisExtractor:
         It yields the full JSON data for one trial at a time.
         """
         page = 1
-        if from_decision_date:
-            pass
-        else:
-            pass
-
         while True:
             search_results = await self._get_trial_list_page(
                 page, from_decision_date=from_decision_date,
@@ -109,9 +103,12 @@ class CtisExtractor:
                 self._get_full_trial_details(ct_number) for ct_number in ct_numbers
             ]
             for future in asyncio.as_completed(tasks):
-                trial_details = await future
-                if trial_details:
-                    yield trial_details
+                try:
+                    trial_details = await future
+                    if trial_details:
+                        yield trial_details
+                except (httpx.RequestError, httpx.HTTPStatusError) as e:
+                    logging.warning("Skipping trial due to error: %s", e)
 
             if not search_results.get("pagination", {}).get("nextPage"):
                 break
