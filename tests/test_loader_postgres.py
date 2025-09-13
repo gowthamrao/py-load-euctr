@@ -282,3 +282,68 @@ def test_postgres_loader_bulk_load_rollback_on_failure(
             count = cur.fetchone()[0]
             # Only the initial row should exist.
             assert count == 1, "Transaction should have been rolled back, leaving no new rows."
+
+
+def test_postgres_loader_bulk_load_with_schema(
+    postgres_loader: PostgresLoader, postgres_container: PostgresContainer
+):
+    """
+    Tests bulk loading into a table with a specific schema.
+    """
+    schema_name = "my_schema"
+    table_name = "test_table"
+    qualified_table_name = f"{schema_name}.{table_name}"
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([1, "schema_test"])
+    output.seek(0)
+    data_stream = io.BytesIO(output.getvalue().encode("utf-8"))
+
+    with postgres_loader as loader:
+        loader.execute_sql(f"CREATE SCHEMA IF NOT EXISTS {schema_name};")
+        loader.execute_sql(f"CREATE TABLE {qualified_table_name} (id INT, name VARCHAR(100));")
+        loader.bulk_load_stream(
+            target_table=qualified_table_name,
+            data_stream=data_stream,
+            columns=["id", "name"],
+            delimiter=","
+        )
+
+    # Verify the data was loaded correctly.
+    conn_url = postgres_container.get_connection_url()
+    parsed = urllib.parse.urlparse(conn_url)
+    conn_string = (
+        f"host='{parsed.hostname}' port='{parsed.port}' "
+        f"user='{parsed.username}' password='{parsed.password}' "
+        f"dbname='{parsed.path.lstrip('/')}'"
+    )
+    with psycopg.connect(conn_string) as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT name FROM {qualified_table_name} WHERE id = 1;")
+            name = cur.fetchone()[0]
+            assert name == "schema_test"
+
+
+def test_postgres_loader_execute_sql_fetch(
+    postgres_loader: PostgresLoader,
+):
+    """
+    Tests the fetch options of the execute_sql method.
+    """
+    table_name = "test_fetch"
+    with postgres_loader as loader:
+        loader.execute_sql(f"CREATE TABLE {table_name} (id INT, name VARCHAR(50));")
+        loader.execute_sql(f"INSERT INTO {table_name} VALUES (1, 'one'), (2, 'two');")
+
+        # Test fetch="one"
+        result_one = loader.execute_sql(f"SELECT id, name FROM {table_name} WHERE id = 1;", fetch="one")
+        assert result_one == (1, 'one')
+
+        # Test fetch="all"
+        result_all = loader.execute_sql(f"SELECT id, name FROM {table_name} ORDER BY id;", fetch="all")
+        assert result_all == [(1, 'one'), (2, 'two')]
+
+        # Test fetch=None
+        result_none = loader.execute_sql("SELECT 1;", fetch=None)
+        assert result_none is None
