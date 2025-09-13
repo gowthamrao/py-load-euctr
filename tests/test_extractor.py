@@ -302,3 +302,72 @@ async def test_ctis_extractor_empty_data_with_next_page(
     # Verify that only one page was requested
     requests = httpx_mock.get_requests(method="POST", url=CtisExtractor.SEARCH_URL)
     assert len(requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_ctis_extractor_malformed_json_response(
+    mock_settings: Settings, httpx_mock: HTTPXMock
+):
+    """
+    Tests that the extractor handles a malformed JSON response from the search API.
+    """
+    httpx_mock.add_response(
+        method="POST",
+        url=CtisExtractor.SEARCH_URL,
+        text="this is not json",
+        headers={"Content-Type": "application/json"},
+    )
+
+    extractor = CtisExtractor(settings=mock_settings)
+    results = [trial async for trial in extractor.extract_trials()]
+
+    assert (
+        len(results) == 0
+    ), "Extractor should not yield results on malformed JSON response."
+
+
+@pytest.mark.asyncio
+async def test_ctis_extractor_concurrent_retrieve_timeouts(
+    mock_settings: Settings, httpx_mock: HTTPXMock
+):
+    """
+    Tests that the extractor can handle multiple concurrent timeouts when fetching
+    trial details and still process the successful responses.
+    """
+    # Mock a search response with three trials
+    mock_search_response = {
+        "pagination": {"page": 1, "size": 3, "totalPages": 1, "nextPage": False},
+        "data": [
+            {"ctNumber": "2022-000001-01", "ctTitle": "Trial 1"},
+            {"ctNumber": "2022-000002-02", "ctTitle": "Trial 2"},
+            {"ctNumber": "2022-000003-03", "ctTitle": "Trial 3"},
+        ],
+    }
+    httpx_mock.add_response(method="POST", url=CtisExtractor.SEARCH_URL, json=mock_search_response)
+
+    # Mock the retrieve calls:
+    # - Trial 1: Timeout
+    # - Trial 2: Success
+    # - Trial 3: Timeout
+    httpx_mock.add_exception(
+        httpx.TimeoutException("Timeout"),
+        method="GET",
+        url=CtisExtractor.RETRIEVE_URL_TEMPLATE.format(ct_number="2022-000001-01"),
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url=CtisExtractor.RETRIEVE_URL_TEMPLATE.format(ct_number="2022-000002-02"),
+        json=MOCK_TRIAL_DETAILS_2,
+    )
+    httpx_mock.add_exception(
+        httpx.TimeoutException("Timeout"),
+        method="GET",
+        url=CtisExtractor.RETRIEVE_URL_TEMPLATE.format(ct_number="2022-000003-03"),
+    )
+
+    extractor = CtisExtractor(settings=mock_settings)
+    results = [trial async for trial in extractor.extract_trials()]
+
+    # Assert that only the successful trial was processed
+    assert len(results) == 1
+    assert results[0] == MOCK_TRIAL_DETAILS_2

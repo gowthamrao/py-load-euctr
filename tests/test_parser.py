@@ -46,10 +46,8 @@ def test_parse_trial_to_csv_with_comma():
         "a string",
         123,
         [],
-        {"ctNumber": "2022-500003-03-00"},  # Missing 'details'
         {"details": "Missing ctNumber"},  # Missing 'ctNumber'
         {"ctNumber": None, "details": "details are here"},
-        {"ctNumber": "2022-500004-04-00", "details": None},
         {},
     ],
 )
@@ -58,6 +56,30 @@ def test_parse_trial_to_csv_invalid_input(invalid_input):
     Tests that the parser returns None for various kinds of invalid or incomplete input.
     """
     assert parse_trial_to_csv(invalid_input) is None
+
+
+@pytest.mark.parametrize(
+    "trial_data, expected_csv",
+    [
+        (
+            {"ctNumber": "2022-500003-03-00"},
+            "2022-500003-03-00,\r\n",
+        ),  # Missing 'details'
+        (
+            {"ctNumber": "2022-500004-04-00", "details": None},
+            "2022-500004-04-00,\r\n",
+        ),  # details is None
+        (
+            {"ctNumber": "2022-500005-05-00", "details": ""},
+            "2022-500005-05-00,\r\n",
+        ),  # details is empty string
+    ],
+)
+def test_parse_trial_to_csv_missing_or_empty_details(trial_data, expected_csv):
+    """
+    Tests that trials with missing or empty details are parsed correctly.
+    """
+    assert parse_trial_to_csv(trial_data) == expected_csv
 
 
 def test_parse_trial_with_special_characters():
