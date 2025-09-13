@@ -14,6 +14,7 @@
 """Provides a class to extract clinical trial data from the CTIS API."""
 
 import asyncio
+import json
 import logging
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -57,8 +58,8 @@ class CtisExtractor:
             response = await self.client.post(self.SEARCH_URL, json=payload)
             response.raise_for_status()
             return response.json()
-        except (httpx.RequestError, httpx.HTTPStatusError) as e:
-            logging.error("Failed to fetch trial list page: %s", e)
+        except (httpx.RequestError, httpx.HTTPStatusError, json.JSONDecodeError) as e:
+            logging.error("Failed to fetch or parse trial list page: %s", e)
             return {}
 
     async def _get_full_trial_details(self, ct_number: str) -> dict[str, Any]:
