@@ -119,10 +119,12 @@ async def test_full_etl_pipeline(
     # 2. Extract and Prepare Data (mimicking example.py)
     extractor = CtisExtractor(settings=mock_settings)
     string_buffer = io.StringIO()
-    writer = csv.writer(string_buffer, delimiter='\t', quoting=csv.QUOTE_MINIMAL)
+    writer = csv.writer(string_buffer, delimiter="\t", quoting=csv.QUOTE_MINIMAL)
 
     async for trial_data in extractor.extract_trials():
-        source_url = extractor.RETRIEVE_URL_TEMPLATE.format(ct_number=trial_data["ctNumber"])
+        source_url = extractor.RETRIEVE_URL_TEMPLATE.format(
+            ct_number=trial_data["ctNumber"]
+        )
         bronze_record = CtisTrialBronze(
             load_id=load_id,
             extracted_at_utc=datetime.now(timezone.utc),
@@ -130,33 +132,37 @@ async def test_full_etl_pipeline(
             data=trial_data,
         )
         model_dict = bronze_record.model_dump()
-        model_dict['data'] = json.dumps(model_dict['data'])
-        writer.writerow([
-            model_dict['load_id'],
-            model_dict['extracted_at_utc'].isoformat(),
-            model_dict['source_url'],
-            model_dict['data'],
-        ])
+        model_dict["data"] = json.dumps(model_dict["data"])
+        writer.writerow(
+            [
+                model_dict["load_id"],
+                model_dict["extracted_at_utc"].isoformat(),
+                model_dict["source_url"],
+                model_dict["data"],
+            ]
+        )
 
     string_buffer.seek(0)
-    bytes_buffer = io.BytesIO(string_buffer.getvalue().encode('utf-8'))
+    bytes_buffer = io.BytesIO(string_buffer.getvalue().encode("utf-8"))
 
     # 3. Load
     with postgres_loader as loader:
         loader.execute_sql(f"CREATE SCHEMA IF NOT EXISTS {schema_name};")
-        loader.execute_sql(f"""
+        loader.execute_sql(
+            f"""
             CREATE TABLE {schema_name}.{table_name} (
                 _load_id VARCHAR(36) NOT NULL,
                 _extracted_at_utc TIMESTAMP WITH TIME ZONE NOT NULL,
                 _source_url TEXT,
                 data JSONB
             );
-        """)
+        """
+        )
         loader.bulk_load_stream(
             target_table=f"{schema_name}.{table_name}",
             data_stream=bytes_buffer,
             columns=["_load_id", "_extracted_at_utc", "_source_url", "data"],
-            delimiter='\t'
+            delimiter="\t",
         )
 
     # 4. Verify
@@ -183,6 +189,7 @@ async def test_delta_load_pipeline(
 ):
     """Tests the delta/incremental load functionality."""
     from py_load_euctr.utils import get_last_decision_date
+
     schema_name = "raw"
     table_name = "ctis_trials_delta"
     load_id_1 = str(uuid.uuid4())
@@ -205,33 +212,41 @@ async def test_delta_load_pipeline(
 
     extractor = CtisExtractor(settings=mock_settings)
     string_buffer_1 = io.StringIO()
-    writer_1 = csv.writer(string_buffer_1, delimiter='\t', quoting=csv.QUOTE_MINIMAL)
+    writer_1 = csv.writer(string_buffer_1, delimiter="\t", quoting=csv.QUOTE_MINIMAL)
     async for trial_data in extractor.extract_trials():
         bronze_record = CtisTrialBronze(
-            load_id=load_id_1, extracted_at_utc=datetime.now(timezone.utc),
-            source_url="", data=trial_data
+            load_id=load_id_1,
+            extracted_at_utc=datetime.now(timezone.utc),
+            source_url="",
+            data=trial_data,
         )
         model_dict = bronze_record.model_dump()
-        model_dict['data'] = json.dumps(model_dict['data'])
-        writer_1.writerow([
-            model_dict['load_id'], model_dict['extracted_at_utc'].isoformat(),
-            model_dict['source_url'], model_dict['data']
-        ])
+        model_dict["data"] = json.dumps(model_dict["data"])
+        writer_1.writerow(
+            [
+                model_dict["load_id"],
+                model_dict["extracted_at_utc"].isoformat(),
+                model_dict["source_url"],
+                model_dict["data"],
+            ]
+        )
     string_buffer_1.seek(0)
 
     with postgres_loader as loader:
         loader.execute_sql(f"CREATE SCHEMA IF NOT EXISTS {schema_name};")
-        loader.execute_sql(f"""
+        loader.execute_sql(
+            f"""
             CREATE TABLE {schema_name}.{table_name} (
                 _load_id VARCHAR(36), _extracted_at_utc TIMESTAMPTZ,
                 _source_url TEXT, data JSONB
             );
-        """)
+        """
+        )
         loader.bulk_load_stream(
             target_table=f"{schema_name}.{table_name}",
-            data_stream=io.BytesIO(string_buffer_1.getvalue().encode('utf-8')),
+            data_stream=io.BytesIO(string_buffer_1.getvalue().encode("utf-8")),
             columns=["_load_id", "_extracted_at_utc", "_source_url", "data"],
-            delimiter='\t'
+            delimiter="\t",
         )
 
     with psycopg.connect(db_connection_string) as conn:
@@ -259,26 +274,34 @@ async def test_delta_load_pipeline(
 
     extractor_delta = CtisExtractor(settings=mock_settings)
     string_buffer_2 = io.StringIO()
-    writer_2 = csv.writer(string_buffer_2, delimiter='\t', quoting=csv.QUOTE_MINIMAL)
-    async for trial_data in extractor_delta.extract_trials(from_decision_date=from_date):
+    writer_2 = csv.writer(string_buffer_2, delimiter="\t", quoting=csv.QUOTE_MINIMAL)
+    async for trial_data in extractor_delta.extract_trials(
+        from_decision_date=from_date
+    ):
         bronze_record = CtisTrialBronze(
-            load_id=load_id_2, extracted_at_utc=datetime.now(timezone.utc),
-            source_url="", data=trial_data
+            load_id=load_id_2,
+            extracted_at_utc=datetime.now(timezone.utc),
+            source_url="",
+            data=trial_data,
         )
         model_dict = bronze_record.model_dump()
-        model_dict['data'] = json.dumps(model_dict['data'])
-        writer_2.writerow([
-            model_dict['load_id'], model_dict['extracted_at_utc'].isoformat(),
-            model_dict['source_url'], model_dict['data']
-        ])
+        model_dict["data"] = json.dumps(model_dict["data"])
+        writer_2.writerow(
+            [
+                model_dict["load_id"],
+                model_dict["extracted_at_utc"].isoformat(),
+                model_dict["source_url"],
+                model_dict["data"],
+            ]
+        )
     string_buffer_2.seek(0)
 
     with postgres_loader as loader:
         loader.bulk_load_stream(
             target_table=f"{schema_name}.{table_name}",
-            data_stream=io.BytesIO(string_buffer_2.getvalue().encode('utf-8')),
+            data_stream=io.BytesIO(string_buffer_2.getvalue().encode("utf-8")),
             columns=["_load_id", "_extracted_at_utc", "_source_url", "data"],
-            delimiter='\t'
+            delimiter="\t",
         )
 
     # --- Final Verification ---
@@ -286,7 +309,9 @@ async def test_delta_load_pipeline(
         with conn.cursor() as cur:
             cur.execute(f"SELECT COUNT(*) FROM {schema_name}.{table_name};")
             assert cur.fetchone()[0] == 2
-            cur.execute(f"SELECT COUNT(*) FROM {schema_name}.{table_name} WHERE data->>'ctNumber' = '2023-002';")
+            cur.execute(
+                f"SELECT COUNT(*) FROM {schema_name}.{table_name} WHERE data->>'ctNumber' = '2023-002';"
+            )
             assert cur.fetchone()[0] == 1
 
 
@@ -314,7 +339,10 @@ async def test_empty_search_results(
     httpx_mock.add_response(
         method="POST",
         url=CtisExtractor.SEARCH_URL,
-        json={"pagination": {"page": 1, "size": 0, "totalPages": 0, "nextPage": False}, "data": []},
+        json={
+            "pagination": {"page": 1, "size": 0, "totalPages": 0, "nextPage": False},
+            "data": [],
+        },
     )
     extractor = CtisExtractor(settings=mock_settings)
     trials = [trial async for trial in extractor.extract_trials()]
@@ -357,36 +385,45 @@ async def test_missing_trial_details(
 
     extractor = CtisExtractor(settings=mock_settings)
     string_buffer = io.StringIO()
-    writer = csv.writer(string_buffer, delimiter='\t', quoting=csv.QUOTE_MINIMAL)
+    writer = csv.writer(string_buffer, delimiter="\t", quoting=csv.QUOTE_MINIMAL)
     async for trial_data in extractor.extract_trials():
-        source_url = CtisExtractor.RETRIEVE_URL_TEMPLATE.format(ct_number=trial_data["ctNumber"])
+        source_url = CtisExtractor.RETRIEVE_URL_TEMPLATE.format(
+            ct_number=trial_data["ctNumber"]
+        )
         bronze_record = CtisTrialBronze(
             load_id=load_id,
             extracted_at_utc=datetime.now(timezone.utc),
-            source_url=source_url, data=trial_data
+            source_url=source_url,
+            data=trial_data,
         )
         model_dict = bronze_record.model_dump()
-        model_dict['data'] = json.dumps(model_dict['data'])
-        writer.writerow([
-            model_dict['load_id'], model_dict['extracted_at_utc'].isoformat(),
-            model_dict['source_url'], model_dict['data']
-        ])
+        model_dict["data"] = json.dumps(model_dict["data"])
+        writer.writerow(
+            [
+                model_dict["load_id"],
+                model_dict["extracted_at_utc"].isoformat(),
+                model_dict["source_url"],
+                model_dict["data"],
+            ]
+        )
     string_buffer.seek(0)
-    bytes_buffer = io.BytesIO(string_buffer.getvalue().encode('utf-8'))
+    bytes_buffer = io.BytesIO(string_buffer.getvalue().encode("utf-8"))
 
     with postgres_loader as loader:
         loader.execute_sql(f"CREATE SCHEMA IF NOT EXISTS {schema_name};")
-        loader.execute_sql(f"""
+        loader.execute_sql(
+            f"""
             CREATE TABLE {schema_name}.{table_name} (
                 _load_id VARCHAR(36), _extracted_at_utc TIMESTAMPTZ,
                 _source_url TEXT, data JSONB
             );
-        """)
+        """
+        )
         loader.bulk_load_stream(
             target_table=f"{schema_name}.{table_name}",
             data_stream=bytes_buffer,
             columns=["_load_id", "_extracted_at_utc", "_source_url", "data"],
-            delimiter='\t'
+            delimiter="\t",
         )
 
     with psycopg.connect(db_connection_string) as conn:
@@ -443,36 +480,45 @@ async def test_extractor_pagination(
 
     extractor = CtisExtractor(settings=mock_settings)
     string_buffer = io.StringIO()
-    writer = csv.writer(string_buffer, delimiter='\t', quoting=csv.QUOTE_MINIMAL)
+    writer = csv.writer(string_buffer, delimiter="\t", quoting=csv.QUOTE_MINIMAL)
     async for trial_data in extractor.extract_trials():
-        source_url = CtisExtractor.RETRIEVE_URL_TEMPLATE.format(ct_number=trial_data["ctNumber"])
+        source_url = CtisExtractor.RETRIEVE_URL_TEMPLATE.format(
+            ct_number=trial_data["ctNumber"]
+        )
         bronze_record = CtisTrialBronze(
             load_id=load_id,
             extracted_at_utc=datetime.now(timezone.utc),
-            source_url=source_url, data=trial_data
+            source_url=source_url,
+            data=trial_data,
         )
         model_dict = bronze_record.model_dump()
-        model_dict['data'] = json.dumps(model_dict['data'])
-        writer.writerow([
-            model_dict['load_id'], model_dict['extracted_at_utc'].isoformat(),
-            model_dict['source_url'], model_dict['data']
-        ])
+        model_dict["data"] = json.dumps(model_dict["data"])
+        writer.writerow(
+            [
+                model_dict["load_id"],
+                model_dict["extracted_at_utc"].isoformat(),
+                model_dict["source_url"],
+                model_dict["data"],
+            ]
+        )
     string_buffer.seek(0)
-    bytes_buffer = io.BytesIO(string_buffer.getvalue().encode('utf-8'))
+    bytes_buffer = io.BytesIO(string_buffer.getvalue().encode("utf-8"))
 
     with postgres_loader as loader:
         loader.execute_sql(f"CREATE SCHEMA IF NOT EXISTS {schema_name};")
-        loader.execute_sql(f"""
+        loader.execute_sql(
+            f"""
             CREATE TABLE {schema_name}.{table_name} (
                 _load_id VARCHAR(36), _extracted_at_utc TIMESTAMPTZ,
                 _source_url TEXT, data JSONB
             );
-        """)
+        """
+        )
         loader.bulk_load_stream(
             target_table=f"{schema_name}.{table_name}",
             data_stream=bytes_buffer,
             columns=["_load_id", "_extracted_at_utc", "_source_url", "data"],
-            delimiter='\t'
+            delimiter="\t",
         )
 
     with psycopg.connect(db_connection_string) as conn:

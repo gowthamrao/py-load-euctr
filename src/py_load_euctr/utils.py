@@ -18,7 +18,9 @@ from typing import Optional
 from .loader.postgres import PostgresLoader
 
 
-def get_last_decision_date(db_connection_string: str, schema: str, table: str) -> Optional[str]:
+def get_last_decision_date(
+    db_connection_string: str, schema: str, table: str
+) -> Optional[str]:
     """
     Retrieves the most recent decision date from the database.
     Returns the date in 'YYYY-MM-DD' format or None if no data exists.
@@ -36,7 +38,7 @@ def get_last_decision_date(db_connection_string: str, schema: str, table: str) -
         with PostgresLoader(db_connection_string) as loader:
             result = loader.execute_sql(query, fetch="one")
             if result and result[0]:
-                last_date = result[0].strftime('%Y-%m-%d')
+                last_date = result[0].strftime("%Y-%m-%d")
                 print(f"Found last decision date: {last_date}")
                 return last_date
             else:

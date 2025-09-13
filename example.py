@@ -46,9 +46,13 @@ async def main(load_type: str):
         # Determine the starting decision date for delta loads
         from_decision_date = None
         if load_type == "delta":
-            from_decision_date = get_last_decision_date(settings.db_connection_string, schema_name, table_name)
+            from_decision_date = get_last_decision_date(
+                settings.db_connection_string, schema_name, table_name
+            )
             if from_decision_date is None:
-                print("No last decision date found. Consider running a 'full' load first.")
+                print(
+                    "No last decision date found. Consider running a 'full' load first."
+                )
                 # Depending on requirements, you might want to stop here or default to a full load.
                 # For this example, we'll stop.
                 return
@@ -57,11 +61,17 @@ async def main(load_type: str):
         extractor = CtisExtractor(settings)
 
         string_buffer = io.StringIO()
-        writer = csv.writer(string_buffer, delimiter='\\t', quoting=csv.QUOTE_NONE, escapechar='\\\\')
+        writer = csv.writer(
+            string_buffer, delimiter="\\t", quoting=csv.QUOTE_NONE, escapechar="\\\\"
+        )
 
         trials_processed = 0
-        async for trial_data in extractor.extract_trials(from_decision_date=from_decision_date):
-            source_url = extractor.RETRIEVE_URL_TEMPLATE.format(ct_number=trial_data.get("ctNumber", ""))
+        async for trial_data in extractor.extract_trials(
+            from_decision_date=from_decision_date
+        ):
+            source_url = extractor.RETRIEVE_URL_TEMPLATE.format(
+                ct_number=trial_data.get("ctNumber", "")
+            )
 
             bronze_record = CtisTrialBronze(
                 load_id=load_id,
@@ -73,14 +83,16 @@ async def main(load_type: str):
             # Serialize the JSON data part of the model to a string
             # The model dump will handle the datetime serialization correctly.
             model_dict = bronze_record.model_dump()
-            model_dict['data'] = json.dumps(model_dict['data'])
+            model_dict["data"] = json.dumps(model_dict["data"])
 
-            writer.writerow([
-                model_dict['load_id'],
-                model_dict['extracted_at_utc'].isoformat(),
-                model_dict['source_url'],
-                model_dict['data'],
-            ])
+            writer.writerow(
+                [
+                    model_dict["load_id"],
+                    model_dict["extracted_at_utc"].isoformat(),
+                    model_dict["source_url"],
+                    model_dict["data"],
+                ]
+            )
 
             trials_processed += 1
             if trials_processed % 100 == 0:
@@ -95,15 +107,17 @@ async def main(load_type: str):
             string_buffer.seek(0)
 
             # Encode the string buffer to bytes for the loader
-            bytes_buffer = io.BytesIO(string_buffer.getvalue().encode('utf-8'))
+            bytes_buffer = io.BytesIO(string_buffer.getvalue().encode("utf-8"))
 
             loader.bulk_load_stream(
                 target_table=f"{schema_name}.{table_name}",
                 data_stream=bytes_buffer,
                 columns=["_load_id", "_extracted_at_utc", "_source_url", "data"],
-                delimiter='\\t'
+                delimiter="\\t",
             )
-            print(f"Successfully loaded {trials_processed} records into '{schema_name}.{table_name}'.")
+            print(
+                f"Successfully loaded {trials_processed} records into '{schema_name}.{table_name}'."
+            )
         else:
             print("No trials were extracted, skipping load.")
 
