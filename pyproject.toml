@@ -28,6 +28,9 @@ lint = "ruff"
 pythonpath = [
   "src"
 ]
+markers = [
+    "integration: marks tests as integration tests",
+]
 
 
 [dependency-groups]
