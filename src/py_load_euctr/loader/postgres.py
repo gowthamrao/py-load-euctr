@@ -90,10 +90,16 @@ class PostgresLoader(BaseLoader):
         else:
             column_sql = sql.SQL("")
 
+        table_parts = target_table.split(".")
+        if len(table_parts) == 2:
+            table_sql = sql.SQL(".").join(map(sql.Identifier, table_parts))
+        else:
+            table_sql = sql.Identifier(target_table)
+
         copy_sql = sql.SQL(
             "COPY {table}{columns} FROM STDIN WITH (FORMAT CSV, DELIMITER %(delim)s)",
         ).format(
-            table=sql.Identifier(target_table),
+            table=table_sql,
             columns=column_sql,
         )
 
@@ -103,7 +109,12 @@ class PostgresLoader(BaseLoader):
             while chunk := data_stream.read(8192):
                 copy.write(chunk)
 
-    def execute_sql(self, sql_query: str, params: Iterable[Any] | None = None) -> None:
+    def execute_sql(
+        self,
+        sql_query: str,
+        params: Iterable[Any] | None = None,
+        fetch: str | None = None,
+    ) -> Any:
         """Execute an arbitrary SQL command."""
         if not self.cursor:
             msg = (
@@ -113,3 +124,9 @@ class PostgresLoader(BaseLoader):
             raise RuntimeError(msg)
 
         self.cursor.execute(sql_query, params)
+
+        if fetch == "one":
+            return self.cursor.fetchone()
+        if fetch == "all":
+            return self.cursor.fetchall()
+        return None

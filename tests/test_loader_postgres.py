@@ -13,6 +13,9 @@
 # limitations under the License.
 
 import csv
+import io
+import urllib.parse
+
 import pytest
 from testcontainers.postgres import PostgresContainer
 import psycopg
@@ -32,9 +35,6 @@ def postgres_container():
     """
     with PostgresContainer(POSTGRES_IMAGE) as container:
         yield container
-
-
-import urllib.parse
 
 
 @pytest.fixture
@@ -84,9 +84,6 @@ def test_postgres_loader_connection_and_execution(postgres_loader: PostgresLoade
             assert result is not None, "Data should have been committed and be selectable."
             assert result[0] == 1
             assert result[1] == "test_name"
-
-
-import io
 
 
 def test_postgres_loader_rollback_on_exception(postgres_loader: PostgresLoader, postgres_container: PostgresContainer):
@@ -233,3 +230,55 @@ def test_postgres_loader_bulk_load_no_columns(
             cur.execute(f"SELECT name FROM {test_table_name} WHERE id = 10;")
             name = cur.fetchone()[0]
             assert name == "no_columns_specified"
+
+
+def test_postgres_loader_bulk_load_rollback_on_failure(
+    postgres_loader: PostgresLoader, postgres_container: PostgresContainer
+):
+    """
+    Tests that if bulk_load_stream fails, the transaction is rolled back
+    and no partial data is committed.
+    """
+    test_table_name = "test_bulk_rollback"
+    create_table_sql = f"CREATE TABLE {test_table_name} (id INT, name VARCHAR(50));"
+    conn_url = postgres_container.get_connection_url()
+    parsed = urllib.parse.urlparse(conn_url)
+    conn_string = (
+        f"host='{parsed.hostname}' port='{parsed.port}' "
+        f"user='{parsed.username}' password='{parsed.password}' "
+        f"dbname='{parsed.path.lstrip('/')}'"
+    )
+
+    # Setup: create the table and insert one row to check against later.
+    with psycopg.connect(conn_string) as conn:
+        with conn.cursor() as cur:
+            cur.execute(create_table_sql)
+            cur.execute(f"INSERT INTO {test_table_name} VALUES (0, 'initial_row');")
+        conn.commit()
+
+    # Create a malformed data stream (3 columns instead of 2)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([1, "good_row"])
+    writer.writerow([2, "bad_row", "extra_col"])  # This row will cause an error
+    output.seek(0)
+    data_stream = io.BytesIO(output.getvalue().encode("utf-8"))
+
+    # Action: Attempt the bulk load, which is expected to fail.
+    # The psycopg.errors.BadCopyFileFormat is a good candidate for this error.
+    with pytest.raises(psycopg.Error):
+        with postgres_loader as loader:
+            loader.bulk_load_stream(
+                target_table=test_table_name,
+                data_stream=data_stream,
+                columns=["id", "name"],
+                delimiter=","
+            )
+
+    # Verification: Connect again and ensure no new rows were added.
+    with psycopg.connect(conn_string) as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM {test_table_name};")
+            count = cur.fetchone()[0]
+            # Only the initial row should exist.
+            assert count == 1, "Transaction should have been rolled back, leaving no new rows."
