@@ -38,8 +38,13 @@ def parse_trial_to_csv(trial_data: dict[str, Any]) -> str | None:
     ct_number = trial_data.get("ctNumber")
     details = trial_data.get("details")
 
-    if not ct_number or not details:
+    # ctNumber is mandatory; if it's missing or None, we can't proceed.
+    ct_number = trial_data.get("ctNumber")
+    if ct_number is None:
         return None
+
+    # details can be missing or None; default to an empty string.
+    details = trial_data.get("details") or ""
 
     # Use StringIO to build the CSV row in memory
     output = io.StringIO()
