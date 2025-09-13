@@ -5,40 +5,11 @@ import json
 import uuid
 import argparse
 from datetime import datetime, timezone
-from typing import Optional
-
 from src.py_load_euctr.config import settings
 from src.py_load_euctr.extractor import CtisExtractor
 from src.py_load_euctr.loader.postgres import PostgresLoader
 from src.py_load_euctr.models import CtisTrialBronze
-
-
-def get_last_decision_date(loader: PostgresLoader, schema: str, table: str) -> Optional[str]:
-    """
-    Retrieves the most recent decision date from the database.
-    Returns the date in 'YYYY-MM-DD' format or None if no data exists.
-    """
-    print("Querying for the last decision date...")
-    query = f"""
-        SELECT (data->>'decisionDate')::date AS last_date
-        FROM {schema}.{table}
-        WHERE data->>'decisionDate' IS NOT NULL
-        ORDER BY last_date DESC
-        LIMIT 1;
-    """
-    try:
-        result = loader.execute_sql(query, fetch="one")
-        if result and result[0]:
-            last_date = result[0].strftime('%Y-%m-%d')
-            print(f"Found last decision date: {last_date}")
-            return last_date
-        else:
-            print("No existing decision date found in the database.")
-            return None
-    except Exception as e:
-        # This can happen if the table doesn't exist yet on the first run.
-        print(f"Could not retrieve last decision date (table might not exist yet): {e}")
-        return None
+from src.py_load_euctr.utils import get_last_decision_date
 
 
 async def main(load_type: str):
@@ -75,7 +46,7 @@ async def main(load_type: str):
         # Determine the starting decision date for delta loads
         from_decision_date = None
         if load_type == "delta":
-            from_decision_date = get_last_decision_date(loader, schema_name, table_name)
+            from_decision_date = get_last_decision_date(settings.db_connection_string, schema_name, table_name)
             if from_decision_date is None:
                 print("No last decision date found. Consider running a 'full' load first.")
                 # Depending on requirements, you might want to stop here or default to a full load.
