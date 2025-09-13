@@ -23,7 +23,7 @@ from py_load_euctr.utils import get_last_decision_date
 @pytest.fixture
 def mock_postgres_loader():
     """Mocks the PostgresLoader for unit testing."""
-    with patch('py_load_euctr.utils.PostgresLoader') as mock_loader:
+    with patch("py_load_euctr.utils.PostgresLoader") as mock_loader:
         # To make the mock loader a context manager, we need to mock __enter__ and __exit__
         mock_instance = MagicMock()
         mock_loader.return_value = mock_instance

@@ -53,13 +53,17 @@ def postgres_loader(postgres_container: PostgresContainer) -> PostgresLoader:
     return PostgresLoader(conn_string)
 
 
-def test_postgres_loader_connection_and_execution(postgres_loader: PostgresLoader, postgres_container: PostgresContainer):
+def test_postgres_loader_connection_and_execution(
+    postgres_loader: PostgresLoader, postgres_container: PostgresContainer
+):
     """
     Integration test to verify that the PostgresLoader can connect,
     execute SQL, and commit a transaction correctly.
     """
     test_table_name = "test_commit_table"
-    create_table_sql = f"CREATE TABLE {test_table_name} (id INT PRIMARY KEY, name VARCHAR(50));"
+    create_table_sql = (
+        f"CREATE TABLE {test_table_name} (id INT PRIMARY KEY, name VARCHAR(50));"
+    )
     insert_sql = f"INSERT INTO {test_table_name} (id, name) VALUES (1, 'test_name');"
 
     # Use the loader as a context manager to create a table and insert data.
@@ -81,12 +85,16 @@ def test_postgres_loader_connection_and_execution(postgres_loader: PostgresLoade
         with conn.cursor() as cur:
             cur.execute(f"SELECT id, name FROM {test_table_name} WHERE id = 1;")
             result = cur.fetchone()
-            assert result is not None, "Data should have been committed and be selectable."
+            assert (
+                result is not None
+            ), "Data should have been committed and be selectable."
             assert result[0] == 1
             assert result[1] == "test_name"
 
 
-def test_postgres_loader_rollback_on_exception(postgres_loader: PostgresLoader, postgres_container: PostgresContainer):
+def test_postgres_loader_rollback_on_exception(
+    postgres_loader: PostgresLoader, postgres_container: PostgresContainer
+):
     """
     Integration test to verify that the PostgresLoader rolls back the
     transaction when an exception occurs within the context block.
@@ -116,13 +124,17 @@ def test_postgres_loader_rollback_on_exception(postgres_loader: PostgresLoader, 
             # A reliable way to check for table existence in PostgreSQL.
             cur.execute(
                 "SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = %s);",
-                (test_table_name,)
+                (test_table_name,),
             )
             table_exists = cur.fetchone()[0]
-            assert not table_exists, "Table should not exist after transaction was rolled back."
+            assert (
+                not table_exists
+            ), "Table should not exist after transaction was rolled back."
 
 
-def test_postgres_loader_bulk_load(postgres_loader: PostgresLoader, postgres_container: PostgresContainer):
+def test_postgres_loader_bulk_load(
+    postgres_loader: PostgresLoader, postgres_container: PostgresContainer
+):
     """
     Integration test to verify that the bulk_load_stream method correctly
     loads data into the database using the COPY command.
@@ -145,7 +157,7 @@ def test_postgres_loader_bulk_load(postgres_loader: PostgresLoader, postgres_con
             target_table=test_table_name,
             data_stream=data_stream,
             columns=["id", "name"],
-            delimiter=","
+            delimiter=",",
         )
 
     # Verify the data was loaded correctly.
@@ -187,9 +199,7 @@ def test_postgres_loader_raises_runtime_error_if_not_in_context(
         postgres_loader.execute_sql("SELECT 1;")
 
     with pytest.raises(RuntimeError, match="Cursor is not available"):
-        postgres_loader.bulk_load_stream(
-            "any_table", io.BytesIO(b"any_data")
-        )
+        postgres_loader.bulk_load_stream("any_table", io.BytesIO(b"any_data"))
 
 
 def test_postgres_loader_bulk_load_no_columns(
@@ -212,9 +222,7 @@ def test_postgres_loader_bulk_load_no_columns(
         loader.execute_sql(create_table_sql)
         # Call bulk_load_stream without the 'columns' argument
         loader.bulk_load_stream(
-            target_table=test_table_name,
-            data_stream=data_stream,
-            delimiter=","
+            target_table=test_table_name, data_stream=data_stream, delimiter=","
         )
 
     # Verify the data was loaded correctly.
@@ -272,7 +280,7 @@ def test_postgres_loader_bulk_load_rollback_on_failure(
                 target_table=test_table_name,
                 data_stream=data_stream,
                 columns=["id", "name"],
-                delimiter=","
+                delimiter=",",
             )
 
     # Verification: Connect again and ensure no new rows were added.
@@ -281,7 +289,9 @@ def test_postgres_loader_bulk_load_rollback_on_failure(
             cur.execute(f"SELECT COUNT(*) FROM {test_table_name};")
             count = cur.fetchone()[0]
             # Only the initial row should exist.
-            assert count == 1, "Transaction should have been rolled back, leaving no new rows."
+            assert (
+                count == 1
+            ), "Transaction should have been rolled back, leaving no new rows."
 
 
 def test_postgres_loader_bulk_load_with_schema(
@@ -302,12 +312,14 @@ def test_postgres_loader_bulk_load_with_schema(
 
     with postgres_loader as loader:
         loader.execute_sql(f"CREATE SCHEMA IF NOT EXISTS {schema_name};")
-        loader.execute_sql(f"CREATE TABLE {qualified_table_name} (id INT, name VARCHAR(100));")
+        loader.execute_sql(
+            f"CREATE TABLE {qualified_table_name} (id INT, name VARCHAR(100));"
+        )
         loader.bulk_load_stream(
             target_table=qualified_table_name,
             data_stream=data_stream,
             columns=["id", "name"],
-            delimiter=","
+            delimiter=",",
         )
 
     # Verify the data was loaded correctly.
@@ -337,12 +349,16 @@ def test_postgres_loader_execute_sql_fetch(
         loader.execute_sql(f"INSERT INTO {table_name} VALUES (1, 'one'), (2, 'two');")
 
         # Test fetch="one"
-        result_one = loader.execute_sql(f"SELECT id, name FROM {table_name} WHERE id = 1;", fetch="one")
-        assert result_one == (1, 'one')
+        result_one = loader.execute_sql(
+            f"SELECT id, name FROM {table_name} WHERE id = 1;", fetch="one"
+        )
+        assert result_one == (1, "one")
 
         # Test fetch="all"
-        result_all = loader.execute_sql(f"SELECT id, name FROM {table_name} ORDER BY id;", fetch="all")
-        assert result_all == [(1, 'one'), (2, 'two')]
+        result_all = loader.execute_sql(
+            f"SELECT id, name FROM {table_name} ORDER BY id;", fetch="all"
+        )
+        assert result_all == [(1, "one"), (2, "two")]
 
         # Test fetch=None
         result_none = loader.execute_sql("SELECT 1;", fetch=None)

@@ -47,7 +47,9 @@ def mock_settings() -> Settings:
 
 
 @pytest.mark.asyncio
-async def test_ctis_extractor_happy_path(mock_settings: Settings, httpx_mock: HTTPXMock):
+async def test_ctis_extractor_happy_path(
+    mock_settings: Settings, httpx_mock: HTTPXMock
+):
     """
     Tests that the CtisExtractor can successfully fetch trials, handle pagination,
     and yield the full details for each trial.
@@ -57,13 +59,19 @@ async def test_ctis_extractor_happy_path(mock_settings: Settings, httpx_mock: HT
         method="POST",
         url=CtisExtractor.SEARCH_URL,
         json=MOCK_SEARCH_RESPONSE_PAGE_1,
-        match_json={"pagination": {"page": 1, "size": 20}, "sort": {"property": "decisionDate", "direction": "DESC"}},
+        match_json={
+            "pagination": {"page": 1, "size": 20},
+            "sort": {"property": "decisionDate", "direction": "DESC"},
+        },
     )
     httpx_mock.add_response(
         method="POST",
         url=CtisExtractor.SEARCH_URL,
         json=MOCK_SEARCH_RESPONSE_PAGE_2,
-        match_json={"pagination": {"page": 2, "size": 20}, "sort": {"property": "decisionDate", "direction": "DESC"}},
+        match_json={
+            "pagination": {"page": 2, "size": 20},
+            "sort": {"property": "decisionDate", "direction": "DESC"},
+        },
     )
 
     # Mock the retrieve API responses
@@ -127,7 +135,9 @@ MOCK_TRIAL_DETAILS_4 = {"ctNumber": "2022-000004-04", "details": "Details for Tr
 
 
 @pytest.mark.asyncio
-async def test_ctis_extractor_delta_load(mock_settings: Settings, httpx_mock: HTTPXMock):
+async def test_ctis_extractor_delta_load(
+    mock_settings: Settings, httpx_mock: HTTPXMock
+):
     """
     Tests that the CtisExtractor can successfully fetch trials for a delta load.
     """
@@ -154,7 +164,9 @@ async def test_ctis_extractor_delta_load(mock_settings: Settings, httpx_mock: HT
     extractor = CtisExtractor(settings=mock_settings)
 
     # Run the extraction and collect results
-    results = [trial async for trial in extractor.extract_trials(from_decision_date=from_date)]
+    results = [
+        trial async for trial in extractor.extract_trials(from_decision_date=from_date)
+    ]
 
     # Assertions
     assert len(results) == 1
@@ -171,7 +183,10 @@ async def test_ctis_extractor_no_trials_found(
     httpx_mock.add_response(
         method="POST",
         url=CtisExtractor.SEARCH_URL,
-        json={"pagination": {"page": 1, "size": 20, "totalPages": 0, "nextPage": False}, "data": []},
+        json={
+            "pagination": {"page": 1, "size": 20, "totalPages": 0, "nextPage": False},
+            "data": [],
+        },
     )
 
     extractor = CtisExtractor(settings=mock_settings)
@@ -188,9 +203,7 @@ async def test_ctis_extractor_timeout_error(
     Tests that the extractor can handle a timeout error and stop processing.
     """
     httpx_mock.add_exception(
-        httpx.TimeoutException("Timeout"),
-        method="POST",
-        url=CtisExtractor.SEARCH_URL
+        httpx.TimeoutException("Timeout"), method="POST", url=CtisExtractor.SEARCH_URL
     )
 
     extractor = CtisExtractor(settings=mock_settings)
@@ -292,7 +305,10 @@ async def test_ctis_extractor_empty_data_with_next_page(
     httpx_mock.add_response(
         method="POST",
         url=CtisExtractor.SEARCH_URL,
-        json={"pagination": {"page": 1, "size": 20, "totalPages": 2, "nextPage": True}, "data": []},
+        json={
+            "pagination": {"page": 1, "size": 20, "totalPages": 2, "nextPage": True},
+            "data": [],
+        },
     )
 
     extractor = CtisExtractor(settings=mock_settings)
@@ -343,7 +359,9 @@ async def test_ctis_extractor_concurrent_retrieve_timeouts(
             {"ctNumber": "2022-000003-03", "ctTitle": "Trial 3"},
         ],
     }
-    httpx_mock.add_response(method="POST", url=CtisExtractor.SEARCH_URL, json=mock_search_response)
+    httpx_mock.add_response(
+        method="POST", url=CtisExtractor.SEARCH_URL, json=mock_search_response
+    )
 
     # Mock the retrieve calls:
     # - Trial 1: Timeout

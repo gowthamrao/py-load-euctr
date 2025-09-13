@@ -67,8 +67,12 @@ async def test_ctis_extractor_fetches_and_parses_trials():
         part_i = trial.get("authorizedApplication", {}).get("authorizedPartI", {})
         assert "trialDetails" in part_i, "'trialDetails' not in 'authorizedPartI'"
 
-        clinical_trial_identifiers = part_i.get("trialDetails", {}).get("clinicalTrialIdentifiers", {})
-        assert "publicTitle" in clinical_trial_identifiers, "'publicTitle' not in 'clinicalTrialIdentifiers'"
+        clinical_trial_identifiers = part_i.get("trialDetails", {}).get(
+            "clinicalTrialIdentifiers", {}
+        )
+        assert (
+            "publicTitle" in clinical_trial_identifiers
+        ), "'publicTitle' not in 'clinicalTrialIdentifiers'"
 
 
 # Helper to get the next item from an async generator
