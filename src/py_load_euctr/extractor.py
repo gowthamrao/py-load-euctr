@@ -28,10 +28,14 @@ class CtisExtractor:
     """Extractor for fetching clinical trial data from the CTIS API."""
 
     SEARCH_URL = "https://euclinicaltrials.eu/ctis-public-api/search"
-    RETRIEVE_URL_TEMPLATE = "https://euclinicaltrials.eu/ctis-public-api/retrieve/{ct_number}"
+    RETRIEVE_URL_TEMPLATE = (
+        "https://euclinicaltrials.eu/ctis-public-api/retrieve/{ct_number}"
+    )
 
     def __init__(
-        self, settings: Settings, client: httpx.AsyncClient | None = None,
+        self,
+        settings: Settings,
+        client: httpx.AsyncClient | None = None,
     ) -> None:
         """Initialize the extractor with settings and an optional HTTP client."""
         self.settings = settings
@@ -42,7 +46,10 @@ class CtisExtractor:
         )
 
     async def _get_trial_list_page(
-        self, page: int, page_size: int = 20, from_decision_date: str | None = None,
+        self,
+        page: int,
+        page_size: int = 20,
+        from_decision_date: str | None = None,
     ) -> dict[str, Any]:
         """Fetch a single page of trial search results."""
         payload = {
@@ -70,7 +77,8 @@ class CtisExtractor:
         return response.json()
 
     async def extract_trials(
-        self, from_decision_date: str | None = None,
+        self,
+        from_decision_date: str | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Extract clinical trials from the CTIS portal.
 
@@ -84,7 +92,8 @@ class CtisExtractor:
         page = 1
         while True:
             search_results = await self._get_trial_list_page(
-                page, from_decision_date=from_decision_date,
+                page,
+                from_decision_date=from_decision_date,
             )
             if not search_results or not search_results.get("data"):
                 break
